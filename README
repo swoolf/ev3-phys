@@ -1,0 +1,9 @@
+Under Development: 
+
+Breif description.
+
+A program that allows a use to program an EV3 by physically teaching it IF-THEN statements. 
+The code is realtime displayed in a web site, hosted on the EV3. 
+
+So far, it only works for a line follower program. So a robot would need two motors and one color sensor. 
+
