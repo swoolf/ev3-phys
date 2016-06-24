@@ -7,3 +7,7 @@ The code is realtime displayed in a web site, hosted on the EV3.
 
 So far, it only works for a line follower program. So a robot would need two motors and one color sensor. 
 
+First run serve.py to create a webserver that watches the index.html file. 
+Then, run playing.py to begin programming the robot. 
+
+
