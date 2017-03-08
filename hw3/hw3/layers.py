@@ -176,7 +176,28 @@ def batchnorm_forward(x, gamma, beta, bn_param):
     # the momentum variable to update the running mean and running variance,    #
     # storing your result in the running_mean and running_var variables.        #
     #############################################################################
-    pass
+    mu = np.sum(x, axis=0)*1./N
+    #    print x.shape
+    xmu = x-mu
+    
+    xmu2 = xmu**2
+    
+    var = (1./N)*np.sum(xmu2, axis=0)
+    
+    sqvar = np.sqrt(var + eps)
+    
+    invsqvar = 1./ sqvar
+    
+    xhat = xmu*invsqvar
+    #    print 'xhat,gamma', xhat.shape, gamma.shape
+    gxhat = xhat*gamma
+    
+    out = gxhat + beta
+    
+    
+    cache=(mu, xmu, xmu2, var, sqvar, invsqvar, xhat, gxhat, gamma, beta, x, eps, bn_param)
+    running_mean = momentum * running_mean + (1 - momentum) * mu
+    running_var = momentum * running_var + (1 - momentum) * var
     #############################################################################
     #                             END OF YOUR CODE                              #
     #############################################################################
@@ -188,6 +209,8 @@ def batchnorm_forward(x, gamma, beta, bn_param):
     # the out variable.                                                         #
     #############################################################################
     pass
+    xhat = (x-running_mean)/np.sqrt(running_var + eps)
+    out = gamma*xhat + beta
     #############################################################################
     #                             END OF YOUR CODE                              #
     #############################################################################
@@ -224,10 +247,49 @@ def batchnorm_backward(dout, cache):
   # TODO: Implement the backward pass for batch normalization. Store the      #
   # results in the dx, dgamma, and dbeta variables.                           #
   #############################################################################
+  mode = 'train'
   if mode == 'train':
-    pass
+      mu, xmu, xmu2, var, sqvar, invsqvar, xhat, gxhat, gamma, beta, x, eps, bn_param = cache
+  
+  #  print bn_param
+
+
+  if mode == 'train':
+    
+  #    eps = bn_param['eps']
+    
+      N,D = x.shape
+
+      dbeta = np.sum(dout, axis =0)
+
+      dgxhat = dout
+
+      dgamma = np.sum(dout*xhat, axis=0)
+
+      dxhat = dgxhat*gamma
+
+      dxmu_a = dxhat*invsqvar
+
+      dinvsqvar = np.sum( dxhat*xmu, axis=0)
+
+      dsqvar = dinvsqvar * (-1.)/(sqvar**2)
+
+      dvar = dsqvar*1./(2.*np.sqrt(var + eps))
+
+      dsq = np.ones( xmu2.shape )*(1./N)*dvar
+
+      dxmu_b = 2*xmu*dsq
+
+      dmu = -1*np.sum(dxmu_a + dxmu_b, axis =0)
+
+      dx1 = dxmu_a + dxmu_b
+
+      dx2 = (1./N)*np.ones( mu.shape)* dmu
+
+      dx = dx1 + dx2
+
   elif mode == 'test':
-    pass
+      pass
   #############################################################################
   #                             END OF YOUR CODE                              #
   #############################################################################

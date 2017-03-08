@@ -36,6 +36,7 @@ class ThreeLayerConvNet(object):
     - dtype: numpy datatype to use for computation.
     """
     self.params = {}
+    self.bn_params={}
     self.reg = reg
     self.dtype = dtype
     self.batchnorm=batchnorm
@@ -84,17 +85,17 @@ class ThreeLayerConvNet(object):
     if self.batchnorm:
         print 'using batchnorm'
         #for conv layer
-        bn1 = {'mean':np.zeros(F),'var':np.zeros(F)}
+        bn1 = {'mode':'train','mean':np.zeros(F),'var':np.zeros(F)}
         gamma1 = np.ones(F)
         beta1 = np.zeros(F)
         
         #for affine layer
-        bn2 = {'mean':np.zeros(F),'var':np.zeros(F)}
-        gamma2 = np.ones(F)
-        beta2 = np.zeros(F)
+        bn2 = {'mode':'train','mean':np.zeros(hidden_dim),'var':np.zeros(hidden_dim)}
+        gamma2 = np.ones(hidden_dim)
+        beta2 = np.zeros(hidden_dim)
     
-        self.params.update({'beta1':beta1,'gamma1':gamma1,'beta2':beta2,'gamma2':gamma2,'bn1':bn1,'bn2':bn2})
-    
+        self.params.update({'beta1':beta1,'gamma1':gamma1,'beta2':beta2,'gamma2':gamma2})
+        self.bn_params.update({'bn1':bn1,'bn2':bn2})
     
     
     ############################################################################
@@ -116,8 +117,10 @@ class ThreeLayerConvNet(object):
     W3, b3 = self.params['W3'], self.params['b3']
     
     if self.batchnorm:
-        bn1, gamma1, beta1 = self.params['bn1'], self.params['gamma1'], self.params['beta1']
-        bn2, gamma2, beta2 = self.params['bn2'], self.params['gamma2'], self.params['beta2']
+        gamma1, beta1 =  self.params['gamma1'], self.params['beta1']
+        gamma2, beta2 =  self.params['gamma2'], self.params['beta2']
+        bn1,bn2 = self.bn_params['bn1'],self.bn_params['bn2']
+    
     # pass conv_param to the forward pass for the convolutional layer
     filter_size = W1.shape[2]
     conv_param = {'stride': 1, 'pad': (filter_size - 1) / 2}
@@ -135,16 +138,18 @@ class ThreeLayerConvNet(object):
     #conv layer
 #    print X.shape, W1.shape, b1.shape
     if self.batchnorm:
-        -----------------------------
+        out, conv_cache = conv_bn_relu_pool_forward(X, W1, b1, conv_param, pool_param, beta1, gamma1, bn1)
     else:
-    out, conv_cache = conv_relu_pool_forward(X,W1,b1, conv_param, pool_param)
-#    conv_cache, relu_cache, pool_cache=cache
-#    l1_cache = conv_cache, relu_cache
+        out, conv_cache = conv_relu_pool_forward(X,W1,b1, conv_param, pool_param)
+    
     #affine layer1
     N,F,H,W = out.shape
     X2 = out.reshape(N, F*H*W)
     
-    X3, X3_cache = affine_relu_forward(X2,W2,b2)
+    if False: #self.batchnorm:
+        X3, X3_cache = affine_bn_relu_forward(X2,W2,b2, bn_params=(gamma2, beta2, bn2) )
+    else:
+        X3, X3_cache = affine_relu_forward(X2,W2,b2)
     
     #affine layer2
     scores, scores_cache = affine_forward(X3, W3, b3)
@@ -171,17 +176,32 @@ class ThreeLayerConvNet(object):
     loss+=reg_loss
     
     #calculate gradient
+    #output layer
     dX3, dW3, db3 = affine_backward(dscores, scores_cache)
     dW3 += self.reg*W3
-    
-    dX2, dW2, db2 = affine_relu_backward(dX3, X3_cache)
+
+    #affine hidden layer
+    if False: #self.batchnorm:
+        dX2, dW2, db2, dgamma2, dbeta2 = affine_bn_relu_backward(dX3, X3_cache, bn2)
+    else:
+        dX2, dW2, db2 = affine_relu_backward(dX3, X3_cache)
+        dgamma2=0
+        dbeta2=0
     dW2+=self.reg*W2
-    
+
+    #conv layer
     dX2 = dX2.reshape(N,F,H,W)
-    dX1,dW1,db1= conv_relu_pool_backward(dX2, conv_cache)
+
+    if self.batchnorm:
+        dX1, dW1, db1, dgamma1, dbeta1 = conv_bn_relu_pool_backward(dX2, conv_cache)
+    else:
+        dX1,dW1,db1= conv_relu_pool_backward(dX2, conv_cache)
     dW1+=self.reg*W1
     
     grads.update({'W1':dW1, 'W2':dW2,'W3':dW3,'b1':db1,'b2':db2,'b3':db3})
+
+    if self.batchnorm:
+        grads.update({'beta1':dbeta1, 'gamma1':dgamma1,'beta2':dbeta2, 'gamma2':dgamma2})
     
     ############################################################################
     #                             END OF YOUR CODE                             #
